@@ -1,0 +1,4 @@
+INDEX VERSION 1.126+/Users/jwatt/positioning/workspace/.metadata/.plugins/org.eclipse.jdt.core
+2770550732.index
+1631125526.index
+118167388.index
