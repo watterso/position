@@ -1,0 +1,90 @@
+package com.watterso.position;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
+import android.os.Bundle;
+import android.view.Menu;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.TextView;
+
+public class MainActivity extends Activity {
+	private static boolean ScanAsFastAsPossible = true;
+	private boolean firstTime = true;
+	private ArrayList<String> mWifis;
+
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_main);
+
+		IntentFilter i = new IntentFilter();
+		i.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+		registerReceiver(new BroadcastReceiver() {
+			public void onReceive(Context c, Intent i) {
+				if(!WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(i.getAction()))
+						return;
+				WifiManager w = (WifiManager) c.getSystemService(Context.WIFI_SERVICE);
+				if (firstTime) {
+					initializeList(w.getScanResults());
+					firstTime = false;
+				} else {
+					refreshList(w.getScanResults()); 
+				}
+				if (ScanAsFastAsPossible)
+					w.startScan(); 
+				else {
+					
+				}
+			}
+		}, i);
+		mWifis = new ArrayList<String>()i;
+		WifiManager wm = (WifiManager) getSystemService(Context.WIFI_SERVICE);
+		boolean a = wm.startScan();
+
+	}
+
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.main, menu);
+		return true;
+	}
+
+	private void initializeList(List<ScanResult> results) {
+		ListView wifiList = (ListView) findViewById(R.id.WifiList);
+		String[] arr = new String[1];
+		ArrayList<String> wifis = new ArrayList<String>();
+		for (ScanResult res : results) {
+			String wifiInfo = res.SSID + " | " + res.BSSID + " | " + res.level;
+			wifis.add(wifiInfo);
+		}
+		wifiList.setAdapter(new ArrayAdapter<String>(this, R.layout.list_entry,
+				(String[]) wifis.toArray(arr)));
+	}
+
+	private void refreshList(List<ScanResult> results) {
+		ListView wifiList = (ListView) findViewById(R.id.WifiList);
+		for (ScanResult res : results) {
+			String wifiInfo = res.SSID + " | " + res.BSSID + " | " + res.level;
+			TextView child = (TextView) wifiList.findViewWithTag(res.BSSID);
+			if (child != null) {
+				child.setText(wifiInfo);
+			} else {
+				/*ArrayAdapter<String> adapt = (ArrayAdapter<String>) wifiList
+						.getAdapter();
+				adapt.add(wifiInfo);*/
+			}
+		}
+
+	}
+
+}

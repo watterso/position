@@ -1,0 +1,62 @@
+package com.watterso.position;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import android.app.Activity;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
+import android.os.Bundle;
+import android.view.Menu;
+import android.widget.ListView;
+
+public class MainActivity extends Activity {
+	private static boolean ScanAsFastAsPossible = false;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
+        IntentFilter i = new IntentFilter(); 
+        i.addAction (WifiManager.SCAN_RESULTS_AVAILABLE_ACTION); 
+        registerReceiver(new BroadcastReceiver(){ 
+              public void onReceive(Context c, Intent i){ 
+              // Code to execute when SCAN_RESULTS_AVAILABLE_ACTION event occurs 
+              WifiManager w = (WifiManager) c.getSystemService(Context.WIFI_SERVICE); 
+              refreshList(w.getScanResults()); // your method to handle Scan results
+              if (ScanAsFastAsPossible) w.startScan(); // relaunch scan immediately
+              else { /* Schedule the scan to be run later here */}
+              } 
+            }, i ); 
+
+
+            // Launch  wifiscanner the first time here (it will call the broadcast receiver above)
+            WifiManager wm = (WifiManager) getSystemService(Context.WIFI_SERVICE); 
+            boolean a = wm.startScan(); 
+        
+        
+    }
+    
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.main, menu);
+        return true;
+    }
+    
+    private void refreshList(List<ScanResult> results){
+    	ListView wifiList = (ListView) findViewById(R.id.WifiList);
+    	ArrayList<String> wifis = new ArrayList<String>();
+    	for(ScanResult res : results){
+    		wifis.add(res.SSID+"|"+res.BSSID+"\t"+res.level);
+    	}
+    	wifiList.setAdapter(wifis);
+    }
+    
+}

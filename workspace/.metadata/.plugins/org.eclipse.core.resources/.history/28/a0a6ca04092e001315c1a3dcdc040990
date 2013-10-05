@@ -1,0 +1,95 @@
+package com.watterso.position;
+
+import java.util.Arrays;
+import java.util.HashMap;
+
+import android.app.Activity;
+import android.content.Context;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.os.Bundle;
+import android.util.Log;
+
+public class MainActivity extends Activity implements SensorEventListener {
+	//Sensors
+	private SensorManager mSensorManager;
+	private Sensor mLinearAcceleration;
+	private Sensor mAccelerometer;
+	private Sensor mMagneticField;
+	//Stored Sensor Vals
+	private float[] mGravity;
+	private float[] mGeoMagnetic;
+	private float[] mLinearAcc;
+	private HashMap<Long,Float[]> mData;
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		mSensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+		mLinearAcceleration = mSensorManager.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION);
+		mAccelerometer = mSensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+		mMagneticField = mSensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
+		
+		mGravity = new float[3];
+		mGeoMagnetic = new float[3];
+		mLinearAcc = new float[3];
+		mData = new HashMap<Long, Float[]>();
+	}
+	
+	@Override
+	protected void onResume() {
+		super.onResume();
+		mSensorManager.registerListener(this, mLinearAcceleration, SensorManager.SENSOR_DELAY_NORMAL);
+		mSensorManager.registerListener(this, mAccelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+		mSensorManager.registerListener(this, mMagneticField, SensorManager.SENSOR_DELAY_NORMAL);
+	}
+	
+	@Override
+	protected void onPause() {
+		super.onPause();
+		mSensorManager.unregisterListener(this);
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int accuracy) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onSensorChanged(SensorEvent event) {
+		switch(event.sensor.getType()){
+		case Sensor.TYPE_ACCELEROMETER:
+			mGravity = Arrays.copyOf(event.values, 3);
+			break;
+		case Sensor.TYPE_MAGNETIC_FIELD:
+			mGeoMagnetic = Arrays.copyOf(event.values, 3);
+			break;
+		case Sensor.TYPE_LINEAR_ACCELERATION:
+			mLinearAcc = Arrays.copyOf(event.values, 3);
+			break;
+		}
+		float[] rotation = new float[9];
+		if(SensorManager.getRotationMatrix(rotation, null, mGravity, mGeoMagnetic)){
+			//filter small changes
+			if(Math.abs(mLinearAcc[0])>.1 || Math.abs(mLinearAcc[1])>.1 || Math.abs(mLinearAcc[2])>.1){
+				Float[] rotatedAcc = new Float[3];
+				rotatedAcc = rotateVector(mLinearAcc, rotation);
+				mData.put(event.timestamp, rotatedAcc);
+				//Log.d("ROTATE", Arrays.toString(rotation));
+				//Log.d("LINEAR", Arrays.toString(mLinearAcc));
+				Log.d("YOLO", Arrays.toString(rotatedAcc));
+			}
+		}
+	}
+	//NAIVE ROTATION ASSUMES CORRECT USAGE OF 3D VECTOR
+	public static Float[] rotateVector(float[] v, float[] r){
+		Float[] oot = new Float[3];
+		Log.d("DEBUGO", ""+r.length);
+		for(int i = 0; i<(r.length-2); i++){
+			oot[i] = r[i]*v[0]+r[i+1]*v[1]+r[i+2]*v[2];
+		}
+		return oot;
+	}
+}
