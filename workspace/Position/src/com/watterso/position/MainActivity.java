@@ -15,13 +15,17 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
+import android.net.wifi.ScanResult;
+import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.os.IBinder;
@@ -34,15 +38,37 @@ import com.watterso.position.DataIntentService.DataBinder;
 
 public class MainActivity extends Activity implements SensorEventListener {
 	private DataIntentService mDataIntentService;
+	private boolean ScanAsFastAsPossible = true;
 	
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 		Intent intent = new Intent(this, DataIntentService.class);
-		if(bindService(intent,mServiceConnection,Context.BIND_AUTO_CREATE));{
+		if(bindService(intent,mServiceConnection,Context.BIND_AUTO_CREATE)){
 			Log.d("YOLO", "Bound Success!");
 		}
+		IntentFilter i = new IntentFilter();
+		i.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION);
+		registerReceiver(new BroadcastReceiver() {
+			public void onReceive(Context c, Intent i) {
+				if (!WifiManager.SCAN_RESULTS_AVAILABLE_ACTION.equals(i
+						.getAction()))
+					return;
+				WifiManager w = (WifiManager) c.getSystemService(Context.WIFI_SERVICE);
+				Long time = System.nanoTime();
+				HashMap<String,Integer> snapshot = new HashMap<String, Integer>();
+				for(ScanResult scanRes : w.getScanResults()){
+					snapshot.put(scanRes.BSSID, scanRes.level);
+				}
+				mDataIntentService.pushWifiData(time,snapshot);
+				if (ScanAsFastAsPossible)
+					w.startScan();
+				else {
+
+				}
+			}
+		}, i);
 		Button post = (Button)findViewById(R.id.postButton);
 		post.setOnClickListener(new OnClickListener() {
 			
@@ -81,8 +107,8 @@ public class MainActivity extends Activity implements SensorEventListener {
 		
 	}
 	private void postData(){
-		HashMap<Long, Float[]> tmp= new HashMap<Long, Float[]>(mDataIntentService.getAData());
-		new PostDataTask().execute(tmp);
+		new PostDataTask().execute(getJsonFromVectorMap(mDataIntentService.getAccelerometerData()));
+		//new PostDataTask().execute(getJsonFromWifiMap(mDataIntentService.getWifiData()));
 	}
 	
 	private ServiceConnection mServiceConnection = new ServiceConnection() {
@@ -103,8 +129,23 @@ public class MainActivity extends Activity implements SensorEventListener {
 			Log.d("YOLO", "IS NULL? "+(mDataIntentService == null));
 		}
 	};
-	
-	public static JSONObject getJsonFromMap(HashMap<Long,Float[]> in){
+	public static JSONObject getJsonFromWifiMap(HashMap<Long, HashMap<String,Integer>> in ){
+		JSONObject oot = new JSONObject();
+		for(Long l : in.keySet()){
+			try {
+				HashMap<String,Integer> tmp = in.get(l);
+				JSONObject snap = new JSONObject();
+				for(String s : tmp.keySet()){
+					snap.put(s, tmp.get(s));
+				}
+				oot.put(""+l, snap);
+			} catch (JSONException e) {
+				Log.d("YOLOJSON", e.getMessage());
+			}
+		}
+		return oot;
+	}
+	public static JSONObject getJsonFromVectorMap(HashMap<Long,Float[]> in){
 		JSONObject oot = new JSONObject();
 		for(Long l : in.keySet()){
 			try {
@@ -120,11 +161,11 @@ public class MainActivity extends Activity implements SensorEventListener {
 		}
 		return oot;
 	}
-	private class PostDataTask extends AsyncTask<HashMap<Long,Float []>,Void,Void>{
+	private class PostDataTask extends AsyncTask<JSONObject,Void,Void>{
 
 		@Override
-		protected Void doInBackground(HashMap<Long,Float []>... params) {
-			JSONObject json = getJsonFromMap(params[0]);
+		protected Void doInBackground(JSONObject... params) {
+			JSONObject json = params[0];
 			String path = "http://www.posttestserver.com/post.php?dir=james";
 			HttpPost lePost = new HttpPost(path);
 			try {

@@ -1,3 +1,7 @@
 1381019437106	Rename field 'mData'
 1381020830677	Rename type 'DataService'
 1381022279307	Rename field 'mVData'
+1381026117070	Rename field 'mTimeStamps'
+1381027048155	Rename method 'getJsonFromMap'
+1381027242615	Rename method 'getAData'
+1381027372127	Rename method 'getWData'
