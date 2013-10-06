@@ -8,12 +8,19 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context=".WifiActivity" >
 
+    <TextView
+        android:id="@+id/label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true" />
+
     <Button
         android:id="@+id/postButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentTop="true"
+        android:layout_alignParentRight="true"
+        android:layout_below="@id/label"
         android:text="Button" />
 
 </RelativeLayout>

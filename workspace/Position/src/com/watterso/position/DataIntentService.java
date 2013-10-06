@@ -1,20 +1,11 @@
 package com.watterso.position;
 
-import java.io.IOException;
-import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.PriorityQueue;
 
-import org.apache.http.HttpRequest;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.ResponseHandler;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.StringEntity;
-import org.apache.http.impl.client.BasicResponseHandler;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -103,6 +94,10 @@ public class DataIntentService extends IntentService implements
 	public void setMainActivity(MainActivity m) {
 		mMainActivity = m;
 	}
+	
+	public HashMap<String, DeltaSnapShot []> getSnaps(){
+		return mSnaps;
+	}
 
 	@Override
 	public void onDestroy() {
@@ -134,6 +129,7 @@ public class DataIntentService extends IntentService implements
 
 	@Override
 	public void onSensorChanged(SensorEvent event) {
+		long temp = System.currentTimeMillis();
 		switch (event.sensor.getType()) {
 		case Sensor.TYPE_ACCELEROMETER:
 			mGravity = Arrays.copyOf(event.values, 3);
@@ -146,19 +142,18 @@ public class DataIntentService extends IntentService implements
 			break;
 		}
 		float[] rotation = new float[9];
-		if (SensorManager.getRotationMatrix(rotation, null, mGravity,
-				mGeoMagnetic)) {
-			// filter small changes
-			if (Math.abs(mLinearAcc[0]) > .1 || Math.abs(mLinearAcc[1]) > .1
-					|| Math.abs(mLinearAcc[2]) > .1) {
-				// Float[] rotatedAcc = new Float[3];
-				// rotatedAcc = rotateVector(mLinearAcc, rotation);
-				testAccellerometerSize(event.timestamp, mLinearAcc);
-				// Log.d("ROTATE", Arrays.toString(rotation));
-				// Log.d("LINEAR", Arrays.toString(mLinearAcc));
-				// Log.d("YOLO",
-				// ""+rotatedAcc[2]);//Arrays.toString(rotatedAcc));
-			}
+		//Log.d("LE", Arrays.toString(mLinearAcc));
+		// filter small changes
+		if (Math.abs(mLinearAcc[0]) > .1 || Math.abs(mLinearAcc[1]) > .1
+				|| Math.abs(mLinearAcc[2]) > .1) {
+			// Float[] rotatedAcc = new Float[3];
+			// rotatedAcc = rotateVector(mLinearAcc, rotation);
+			testAccellerometerSize(temp, mLinearAcc);
+			// Log.d("ROTATE", Arrays.toString(rotation));
+			// Log.d("LINEAR", Arrays.toString(mLinearAcc));
+			// Log.d("YOLO",
+			// ""+rotatedAcc[2]);//Arrays.toString(rotatedAcc));
+
 		}
 	}
 
@@ -223,15 +218,17 @@ public class DataIntentService extends IntentService implements
 		Arrays.sort(times);
 		Long t0 = times[0];
 		Long tf = times[times.length - 1];
+		//Log.d("TIME", t0+","+tf);
 		HashMap<String, Integer> avgStrength = new HashMap<String, Integer>();
 		HashMap<String, ArrayList<Integer>> tot = new HashMap<String, ArrayList<Integer>>();
 		for (Long timeStamp : mWData.keySet()) {
 			if (timeStamp >= t0 && timeStamp <= tf) {
+				//Log.d("TIME", timeStamp+"");
 				HashMap<String, Integer> lTmp = mWData.get(timeStamp);
 				for (String bssid : lTmp.keySet()) {
 					if (tot.get(bssid) != null) {
 						tot.get(bssid).add(lTmp.get(bssid));
-					}else{
+					} else {
 						ArrayList<Integer> tmp = new ArrayList<Integer>();
 						tmp.add(lTmp.get(bssid));
 						tot.put(bssid, tmp);
@@ -245,14 +242,14 @@ public class DataIntentService extends IntentService implements
 			for (Integer i : strengths) {
 				level += i;
 			}
-			if(level == 0 || strengths.size()==0) 
+			if (level == 0 || strengths.size() == 0)
 				return;
 			Collections.sort(strengths);
 			Integer mean = (int) (level / strengths.size() + .5);
-			Log.d("SIZE&MEAN", "SIZE: "+strengths.size()+" MEAN: "+mean);
-			Integer median = strengths.get(strengths.size()/2);
-			if(mSnaps.get(bssid) == null){
-				mSnaps.put(bssid,new DeltaSnapShot[2]);
+			//Log.d("SIZE&MEAN", "SIZE: " + strengths.size() + " MEAN: " + mean);
+			Integer median = strengths.get(strengths.size() / 2);
+			if (mSnaps.get(bssid) == null) {
+				mSnaps.put(bssid, new DeltaSnapShot[2]);
 			}
 			if (median > mean) {
 				// growing, index 0
@@ -264,8 +261,10 @@ public class DataIntentService extends IntentService implements
 			avgStrength.put(bssid, mean); // avg rounded
 		}
 		mRecentWifiAverages = avgStrength;
-		if (mRecentWifiAverages.size() > 0)
+		mMainActivity.updateCompass();
+		if (mRecentWifiAverages.size() > 0){
 			updateMongo();
+		}
 	}
 
 	private void updateMongo() {
@@ -285,7 +284,7 @@ public class DataIntentService extends IntentService implements
 
 	// DAT ALGOS
 	public static Integer select(ArrayList<Integer> list, int k) {
-		if(list.size()==1){
+		if (list.size() == 1) {
 			return list.get(0);
 		}
 		Integer med = medianOfMedians(list);
@@ -311,14 +310,14 @@ public class DataIntentService extends IntentService implements
 
 	public static Integer medianOfMedians(ArrayList<Integer> list) {
 		ArrayList<Integer> medians = new ArrayList<Integer>();
-		if(list.size()==0)
+		if (list.size() == 0)
 			return 0;
-		if(list.size()<5){
-			return list.get((int)(list.size()/2));
+		if (list.size() < 5) {
+			return list.get((int) (list.size() / 2));
 		}
-		for (int i = 0; ((i+1)*5-1) < list.size(); i++) {
+		for (int i = 0; ((i + 1) * 5 - 1) < list.size(); i++) {
 			Integer[] subArr = new Integer[1];
-			Log.d("YOLO", ((i+1)*5-1)+" ? "+list.size());
+			Log.d("YOLO", ((i + 1) * 5 - 1) + " ? " + list.size());
 			subArr = list.subList(i, (i + 1) * 5 - 1).toArray(subArr);
 			Arrays.sort(subArr);
 			medians.add(subArr[2]);
