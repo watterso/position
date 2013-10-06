@@ -6,3 +6,5 @@
 1381027242615	Rename method 'getAData'
 1381027372127	Rename method 'getWData'
 1381034104449	Rename local variable 'rotatedAcc'
+1381040696581	Rename local variable 'tmp'
+1381040801539	Rename local variable 'tmp'
