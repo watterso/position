@@ -1,28 +1,24 @@
 package com.watterso.position;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.PriorityQueue;
-import java.util.Queue;
 
 import android.app.IntentService;
-import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
-import android.net.wifi.ScanResult;
-import android.net.wifi.WifiManager;
 import android.os.Binder;
 import android.os.IBinder;
-import android.util.Log;
 
 public class DataIntentService extends IntentService implements SensorEventListener {
-	private static final int MAX_ACCEL = 500;
-	private static final int MAX_WIFI = 100;
+	private static final int MAX_ACCEL = 50;
+	private static final int MAX_WIFI = 500;
 	private final IBinder mBinder = new DataBinder();
 	private Intent mReceivedIntent;
 	// Sensors
@@ -36,7 +32,6 @@ public class DataIntentService extends IntentService implements SensorEventListe
 	private float[] mLinearAcc;
 	private HashMap<Long, Float[]> mAData;
 	private HashMap<Long, HashMap<String, Integer>> mWData;
-	private PriorityQueue<Long> mATimeStamps;
 	private PriorityQueue<Long> mWTimeStamps;
 	public DataIntentService(){
 		super("WIFIVEL");
@@ -47,7 +42,6 @@ public class DataIntentService extends IntentService implements SensorEventListe
 		
 		mAData = new HashMap<Long, Float[]>();
 		mWData = new HashMap<Long, HashMap<String,Integer>>();
-		mATimeStamps = new PriorityQueue<Long>();
 		mWTimeStamps = new PriorityQueue<Long>();
 	}
 	public void setupSensors(Context c){
@@ -109,9 +103,7 @@ public class DataIntentService extends IntentService implements SensorEventListe
 					|| Math.abs(mLinearAcc[2]) > .1) {
 				Float[] rotatedAcc = new Float[3];
 				rotatedAcc = rotateVector(mLinearAcc, rotation);
-				mAData.put(event.timestamp, rotatedAcc);
-				mATimeStamps.offer(event.timestamp);
-				testAccellerometerSize();
+				testAccellerometerSize(event.timestamp, rotatedAcc);
 				// Log.d("ROTATE", Arrays.toString(rotation));
 				// Log.d("LINEAR", Arrays.toString(mLinearAcc));
 				// Log.d("YOLO",
@@ -146,10 +138,68 @@ public class DataIntentService extends IntentService implements SensorEventListe
 			mWData.remove(pop);
 		}
 	}
-	private void testAccellerometerSize(){
-		if(mATimeStamps.size()>MAX_ACCEL){
-			Long pop = mATimeStamps.poll();
-			mAData.remove(pop);
+	private void testAccellerometerSize(long timestamp, Float[] accData){
+		if(mAData.size()>=MAX_ACCEL){
+			calcVelocity();
+			mAData.clear();
+		}
+		mAData.put(timestamp, accData);
+	}
+	
+	private void calcVelocity() {
+		Long[] times = new Long[1];
+		times = mAData.keySet().toArray(times);
+		Arrays.sort(times);
+		Long t0 = times[0];
+		Long tf = times[times.length-1];
+		int cnt = 0;
+		HashMap<String,Integer> avgStrength = new HashMap<String, Integer>();
+		for(Long timeStamp : mWData.keySet()){
+			if(timeStamp>t0 && timeStamp<tf){
+				HashMap<String,Integer> lTmp  = mWData.get(timeStamp);
+				for(String bssid : lTmp.keySet()){
+					avgStrength.put(bssid, avgStrength.get(bssid)+lTmp.get(bssid));
+				}
+				cnt++;
+			}
+		}
+		for(String bssid : avgStrength.keySet()){
+			avgStrength.put(bssid, (int)(avgStrength.get(bssid)/cnt+.5));	//avg rounded
+		}
+		
+		float x = 0;
+		float y = 0;
+		ArrayList<Float []> tmp = (ArrayList<Float []>)mAData.values();
+		for(int i =0; i< tmp.size()-1; i++){
+			Float[] arr = tmp.get(i);
+			Float[] arr1 = tmp.get(i+1);
+			x+=adaptive(arr[0],arr1[0]);
+			y+=adaptive(arr[1],arr1[1]);
 		}
 	}
+
+	//TODO: Stop being lazy and do integration on your own
+	//Adapted from:
+	//http://introcs.cs.princeton.edu/java/93integration/AdaptiveQuadrature.java.html
+	private final static double EPSILON = 1E-6;
+	// adaptive quadrature
+    public static float adaptive(float a, float b) {
+        float h = b - a;
+        float c = (float) ((a + b) / 2.0);
+        float d = (float) ((a + c) / 2.0);
+        float e = (float) ((b + c) / 2.0);
+        float Q1 = h/6  * (f(a) + 4*f(c) + f(b));
+        float Q2 = h/12 * (f(a) + 4*f(d) + 2*f(c) + 4*f(e) + f(b));
+        if (Math.abs(Q2 - Q1) <= EPSILON)
+            return Q2 + (Q2 - Q1) / 15;
+        else
+            return adaptive(a, c) + adaptive(c, b);
+    }
+    /**********************************************************************
+     * Standard normal distribution density function.
+     * Replace with any sufficiently smooth function.
+     **********************************************************************/
+     static float f(float x) {
+         return (float) (Math.exp(- x * x / 2) / Math.sqrt(2 * Math.PI));
+     }
 }

@@ -5,3 +5,4 @@
 1381027048155	Rename method 'getJsonFromMap'
 1381027242615	Rename method 'getAData'
 1381027372127	Rename method 'getWData'
+1381034104449	Rename local variable 'rotatedAcc'
